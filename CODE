@@ -1,0 +1,82 @@
+#include "LCDIC2.h"
+#include <SoftwareSerial.h>
+
+// Initialize LCD and software serial
+LCDIC2 Icd(0x27, 16, 2);
+SoftwareSerial mySerial(3, 2); // RX, TX pins
+
+// Pin assignments
+int sensorPin = A0;           // GAS sensor input pin
+int buzzer = 13;               // Buzzer pin
+int G_led = 8;                 // Green LED pin
+int R_led = 9;                 // Red LED pin
+int fireSensorPin = A2;        // Fire sensor pin
+
+int read_value;                // Variable for reading the gas sensor status
+const int set = 200;           // Smoke detection threshold (adjust as needed)
+
+void setup() {
+  mySerial.begin(9600);
+  Serial.begin(9600);
+
+  pinMode(sensorPin, INPUT);   // Set gas sensor pin as input
+  pinMode(buzzer, OUTPUT);     // Set buzzer pin as output
+  pinMode(R_led, OUTPUT);      // Set Red LED as output
+  pinMode(G_led, OUTPUT);      // Set Green LED as output
+  pinMode(fireSensorPin, INPUT); // Set fire sensor pin as input
+
+  Icd.begin();
+  Icd.clear();
+  Icd.setCursor(0, 0);
+  Icd.print("WELCOME TO");
+  Icd.setCursor(0, 1);
+  Icd.print("GAS Detector");
+  delay(2000);
+  Icd.clear();
+}
+
+void loop() {
+  read_value = analogRead(sensorPin);  // Read gas sensor value
+
+  if (read_value < 0) { read_value = 0; }  // Ensure non-negative value
+
+  Icd.setCursor(0, 0);
+  Icd.print("Smoke Level: ");
+  Icd.print(read_value);
+  Icd.print(" ");
+
+  if (read_value > set) {  // Gas leak detected
+    Icd.setCursor(0, 1);
+    Icd.print("Alert!!!");
+    digitalWrite(buzzer, HIGH);  // Activate buzzer
+    digitalWrite(R_led, HIGH);   // Turn on Red LED
+    digitalWrite(G_led, LOW);    // Turn off Green LED
+    SendMessage();               // Send SMS notification
+    delay(1000);
+  } else {  // Normal condition
+    Icd.setCursor(0, 1);
+    Icd.print(".....Normal.....");
+    digitalWrite(buzzer, LOW);   // Deactivate buzzer
+    digitalWrite(R_led, LOW);    // Turn off Red LED
+    digitalWrite(G_led, HIGH);   // Turn on Green LED
+  }
+
+  int fireValue = digitalRead(fireSensorPin);  // Check for fire sensor value
+  Serial.println(fireValue);
+  if (fireValue == 0) {  // No fire detected
+    delay(500);
+  } else {  // Fire detected, stop buzzer
+    digitalWrite(buzzer, LOW);
+    delay(500);
+  }
+}
+
+void SendMessage() {
+  mySerial.println("AT+CMGF=1");           // Set GSM module to text mode
+  delay(1000);
+  mySerial.println("AT+CMGS=\"+919999999999\""); // Replace with actual number
+  delay(1000);
+  mySerial.println("Excess Gas Detected. Open Windows");  // Message text
+  mySerial.println((char)26);  // Send the message (Ctrl+Z)
+  delay(1000);
+}
